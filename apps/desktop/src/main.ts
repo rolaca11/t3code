@@ -13,6 +13,7 @@ import { resolveRemoteT3CliPackageSpec } from "@t3tools/ssh/command";
 import type { RemoteT3RunnerOptions } from "@t3tools/ssh/tunnel";
 import serverPackageJson from "../../server/package.json" with { type: "json" };
 
+import { installStdioErrorGuards } from "./installStdioErrorGuards.ts";
 import type { DesktopSettings as DesktopSettingsValue } from "./settings/DesktopAppSettings.ts";
 import * as DesktopIpc from "./ipc/DesktopIpc.ts";
 import * as ElectronApp from "./electron/ElectronApp.ts";
@@ -45,6 +46,11 @@ import * as DesktopSshPasswordPrompts from "./ssh/DesktopSshPasswordPrompts.ts";
 import * as DesktopState from "./app/DesktopState.ts";
 import * as DesktopUpdates from "./updates/DesktopUpdates.ts";
 import * as DesktopWindow from "./window/DesktopWindow.ts";
+
+// Swallow broken-pipe (EPIPE) errors from console writes before anything logs,
+// so a closed stdout/stderr pipe (e.g. the Linux AppImage launched without a
+// terminal) cannot crash the main process. See installStdioErrorGuards.ts.
+installStdioErrorGuards();
 
 const desktopEnvironmentLayer = Layer.unwrap(
   Effect.gen(function* () {
