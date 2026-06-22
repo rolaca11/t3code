@@ -415,6 +415,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
         ? ["Add project base directory"]
         : []),
+      ...(settings.githubPullRequestLabels !== DEFAULT_UNIFIED_SETTINGS.githubPullRequestLabels
+        ? ["GitHub PR labels"]
+        : []),
       ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
         ? ["Archive confirmation"]
         : []),
@@ -429,6 +432,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.confirmThreadArchive,
       settings.confirmThreadDelete,
       settings.addProjectBaseDirectory,
+      settings.githubPullRequestLabels,
       settings.defaultThreadEnvMode,
       settings.newWorktreesStartFromOrigin,
       settings.diffIgnoreWhitespace,
@@ -463,6 +467,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
       newWorktreesStartFromOrigin: DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
       addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
+      githubPullRequestLabels: DEFAULT_UNIFIED_SETTINGS.githubPullRequestLabels,
       confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
       confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
       textGenerationModelSelection: DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
@@ -794,6 +799,34 @@ export function GeneralSettingsPanel() {
               placeholder="~/"
               spellCheck={false}
               aria-label="Add project base directory"
+            />
+          }
+        />
+
+        <SettingsRow
+          title="GitHub PR labels"
+          description="Labels applied to GitHub pull requests opened from T3 Code. Separate multiple labels with commas. The labels must already exist in the repository."
+          resetAction={
+            settings.githubPullRequestLabels !==
+            DEFAULT_UNIFIED_SETTINGS.githubPullRequestLabels ? (
+              <SettingResetButton
+                label="GitHub PR labels"
+                onClick={() =>
+                  updateSettings({
+                    githubPullRequestLabels: DEFAULT_UNIFIED_SETTINGS.githubPullRequestLabels,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <DraftInput
+              className="w-full sm:w-72"
+              value={settings.githubPullRequestLabels}
+              onCommit={(next) => updateSettings({ githubPullRequestLabels: next })}
+              placeholder="e.g. ai-generated, needs-review"
+              spellCheck={false}
+              aria-label="GitHub pull request labels"
             />
           }
         />

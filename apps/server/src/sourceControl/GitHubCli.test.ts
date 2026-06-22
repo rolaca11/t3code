@@ -267,6 +267,79 @@ describe("GitHubCli.layer", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("appends a --label flag per configured label when creating a PR", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(Effect.succeed(processOutput("")));
+
+      const gh = yield* GitHubCli.GitHubCli;
+      yield* gh.createPullRequest({
+        cwd: "/repo",
+        baseBranch: "main",
+        headSelector: "feature/labeled",
+        title: "Labeled PR",
+        bodyFile: "/tmp/body.md",
+        labels: ["ai-generated", "needs-review"],
+      });
+
+      expect(mockRun).toHaveBeenCalledWith({
+        operation: "GitHubCli.execute",
+        command: "gh",
+        args: [
+          "pr",
+          "create",
+          "--base",
+          "main",
+          "--head",
+          "feature/labeled",
+          "--title",
+          "Labeled PR",
+          "--body-file",
+          "/tmp/body.md",
+          "--label",
+          "ai-generated",
+          "--label",
+          "needs-review",
+        ],
+        cwd: "/repo",
+        timeoutMs: 30_000,
+      });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("omits the --label flag when creating a PR without labels", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(Effect.succeed(processOutput("")));
+
+      const gh = yield* GitHubCli.GitHubCli;
+      yield* gh.createPullRequest({
+        cwd: "/repo",
+        baseBranch: "main",
+        headSelector: "feature/plain",
+        title: "Plain PR",
+        bodyFile: "/tmp/body.md",
+      });
+
+      expect(mockRun).toHaveBeenCalledWith({
+        operation: "GitHubCli.execute",
+        command: "gh",
+        args: [
+          "pr",
+          "create",
+          "--base",
+          "main",
+          "--head",
+          "feature/plain",
+          "--title",
+          "Plain PR",
+          "--body-file",
+          "/tmp/body.md",
+        ],
+        cwd: "/repo",
+        timeoutMs: 30_000,
+      });
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("surfaces a friendly error when the pull request is not found", () =>
     Effect.gen(function* () {
       mockRun.mockReturnValueOnce(

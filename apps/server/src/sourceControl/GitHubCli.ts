@@ -79,6 +79,7 @@ export interface GitHubCliShape {
     readonly headSelector: string;
     readonly title: string;
     readonly bodyFile: string;
+    readonly labels?: ReadonlyArray<string>;
   }) => Effect.Effect<void, GitHubCliError>;
 
   readonly getDefaultBranch: (input: {
@@ -352,6 +353,7 @@ export const make = Effect.fn("makeGitHubCli")(function* () {
           input.title,
           "--body-file",
           input.bodyFile,
+          ...(input.labels ?? []).flatMap((label) => ["--label", label]),
         ],
       }).pipe(Effect.asVoid),
     getDefaultBranch: (input) =>

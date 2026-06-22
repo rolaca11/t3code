@@ -338,6 +338,22 @@ function limitContext(value: string, maxChars: number): string {
   return `${value.slice(0, maxChars)}\n\n[truncated]`;
 }
 
+/**
+ * Parses the comma-separated `githubPullRequestLabels` setting into a
+ * deduplicated list of non-empty label names suitable for `gh pr create
+ * --label`. Returns an empty array when nothing is configured.
+ */
+export function parsePullRequestLabels(raw: string): ReadonlyArray<string> {
+  const labels = new Set<string>();
+  for (const part of raw.split(",")) {
+    const trimmed = part.trim();
+    if (trimmed.length > 0) {
+      labels.add(trimmed);
+    }
+  }
+  return [...labels];
+}
+
 function shortenSha(sha: string | undefined): string | null {
   if (!sha) return null;
   return sha.slice(0, SHORT_SHA_LENGTH);
@@ -1265,6 +1281,17 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
   ) {
     const provider = yield* sourceControlProvider(cwd);
     const terms = getChangeRequestTerminologyForKind(provider.kind);
+    // GitHub labels are only meaningful for the GitHub provider; other
+    // providers ignore the setting entirely.
+    const labels =
+      provider.kind === "github"
+        ? yield* serverSettingsService.getSettings.pipe(
+            Effect.map((settings) => parsePullRequestLabels(settings.githubPullRequestLabels)),
+            Effect.mapError((cause) =>
+              gitManagerError("runPrStep", "Failed to read server settings for PR labels.", cause),
+            ),
+          )
+        : [];
     const details = yield* gitCore.statusDetails(cwd);
     const branch = details.branch ?? fallbackBranch;
     if (!branch) {
@@ -1335,6 +1362,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
         headSelector: headContext.preferredHeadSelector,
         title: generated.title,
         bodyFile,
+        ...(labels.length > 0 ? { labels } : {}),
       })
       .pipe(Effect.ensuring(fileSystem.remove(bodyFile).pipe(Effect.catch(() => Effect.void))));
 

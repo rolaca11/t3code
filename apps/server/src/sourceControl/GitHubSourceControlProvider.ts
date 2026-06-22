@@ -191,6 +191,7 @@ export const make = Effect.fn("makeGitHubSourceControlProvider")(function* () {
           headSelector: input.headSelector,
           title: input.title,
           bodyFile: input.bodyFile,
+          ...(input.labels ? { labels: input.labels } : {}),
         })
         .pipe(Effect.mapError((error) => providerError("createChangeRequest", error))),
     getRepositoryCloneUrls: (input) =>

@@ -32,7 +32,7 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as GitHubSourceControlProvider from "../sourceControl/GitHubSourceControlProvider.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
-import { makeGitManager } from "./GitManager.ts";
+import { makeGitManager, parsePullRequestLabels } from "./GitManager.ts";
 import { ServerConfig } from "../config.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import {
@@ -570,6 +570,7 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
             input.title,
             "--body-file",
             input.bodyFile,
+            ...(input.labels ?? []).flatMap((label) => ["--label", label]),
           ],
         }).pipe(Effect.asVoid),
       getDefaultBranch: (input) =>
@@ -651,6 +652,7 @@ function makeManager(input?: {
   ghScenario?: FakeGhScenario;
   textGeneration?: Partial<FakeGitTextGeneration>;
   setupScriptRunner?: ProjectSetupScriptRunnerShape;
+  serverSettings?: Parameters<typeof ServerSettingsService.layerTest>[0];
 }) {
   const { service: gitHubCli, ghCalls } = createGitHubCliWithFakeGh(input?.ghScenario);
   const textGeneration = createTextGeneration(input?.textGeneration);
@@ -658,7 +660,7 @@ function makeManager(input?: {
     prefix: "t3-git-manager-test-",
   });
 
-  const serverSettingsLayer = ServerSettingsService.layerTest();
+  const serverSettingsLayer = ServerSettingsService.layerTest(input?.serverSettings);
 
   const vcsDriverLayer = GitVcsDriver.layer.pipe(
     Layer.provideMerge(VcsProcess.layer),
@@ -1801,6 +1803,93 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
           call.includes("pr create --base main --head feature/create-pr-only"),
         ),
       ).toBe(true);
+    }),
+  );
+
+  it.effect("create_pr applies the configured GitHub PR labels", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("t3code-git-manager-");
+      yield* initRepo(repoDir);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/pr-labels"]);
+      const remoteDir = yield* createBareRemote();
+      yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+      fs.writeFileSync(path.join(repoDir, "pr-labels.txt"), "labels\n");
+      yield* runGit(repoDir, ["add", "pr-labels.txt"]);
+      yield* runGit(repoDir, ["commit", "-m", "PR labels branch"]);
+
+      const { manager, ghCalls } = yield* makeManager({
+        serverSettings: { githubPullRequestLabels: " ai-generated , needs-review , ai-generated " },
+        ghScenario: {
+          prListSequence: [
+            "[]",
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            JSON.stringify([
+              {
+                number: 404,
+                title: "PR labels branch",
+                url: "https://github.com/pingdotgg/codething-mvp/pull/404",
+                baseRefName: "main",
+                headRefName: "feature/pr-labels",
+              },
+            ]),
+          ],
+        },
+      });
+
+      const result = yield* runStackedAction(manager, {
+        cwd: repoDir,
+        action: "create_pr",
+      });
+
+      expect(result.pr.status).toBe("created");
+      const createCall = ghCalls.find((call) => call.startsWith("pr create "));
+      expect(createCall).toBeDefined();
+      // Each configured label becomes its own `--label` flag; whitespace is
+      // trimmed and duplicates are collapsed.
+      expect(createCall).toContain("--label ai-generated");
+      expect(createCall).toContain("--label needs-review");
+      expect(createCall?.match(/--label /g)).toHaveLength(2);
+    }),
+  );
+
+  it.effect("create_pr omits --label when no GitHub PR labels are configured", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("t3code-git-manager-");
+      yield* initRepo(repoDir);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/pr-no-labels"]);
+      const remoteDir = yield* createBareRemote();
+      yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+      fs.writeFileSync(path.join(repoDir, "pr-no-labels.txt"), "no labels\n");
+      yield* runGit(repoDir, ["add", "pr-no-labels.txt"]);
+      yield* runGit(repoDir, ["commit", "-m", "PR without labels"]);
+
+      const { manager, ghCalls } = yield* makeManager({
+        ghScenario: {
+          prListSequence: [
+            "[]",
+            // @effect-diagnostics-next-line preferSchemaOverJson:off
+            JSON.stringify([
+              {
+                number: 405,
+                title: "PR without labels",
+                url: "https://github.com/pingdotgg/codething-mvp/pull/405",
+                baseRefName: "main",
+                headRefName: "feature/pr-no-labels",
+              },
+            ]),
+          ],
+        },
+      });
+
+      const result = yield* runStackedAction(manager, {
+        cwd: repoDir,
+        action: "create_pr",
+      });
+
+      expect(result.pr.status).toBe("created");
+      const createCall = ghCalls.find((call) => call.startsWith("pr create "));
+      expect(createCall).toBeDefined();
+      expect(createCall).not.toContain("--label");
     }),
   );
 
@@ -3404,4 +3493,19 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
       ]);
     }),
   );
+});
+
+it("parsePullRequestLabels returns an empty list when nothing is configured", () => {
+  expect(parsePullRequestLabels("")).toEqual([]);
+  expect(parsePullRequestLabels("   ")).toEqual([]);
+  expect(parsePullRequestLabels(",")).toEqual([]);
+  expect(parsePullRequestLabels(" , , ")).toEqual([]);
+});
+
+it("parsePullRequestLabels trims, drops blank segments, and dedupes", () => {
+  expect(parsePullRequestLabels("ai-generated")).toEqual(["ai-generated"]);
+  expect(parsePullRequestLabels(" a , b ")).toEqual(["a", "b"]);
+  expect(parsePullRequestLabels("a,,b,")).toEqual(["a", "b"]);
+  // Duplicates (including after trimming) collapse to a single entry, order preserved.
+  expect(parsePullRequestLabels("a, a , b, a")).toEqual(["a", "b"]);
 });

@@ -73,6 +73,7 @@ export interface SourceControlProviderShape {
     readonly headSelector: string;
     readonly title: string;
     readonly bodyFile: string;
+    readonly labels?: ReadonlyArray<string>;
   }) => Effect.Effect<void, SourceControlProviderError>;
   readonly getRepositoryCloneUrls: (input: {
     readonly cwd: string;

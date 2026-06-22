@@ -165,6 +165,36 @@ it.effect("creates GitHub PRs through provider-neutral input names", () =>
   }),
 );
 
+it.effect("forwards configured labels when creating a GitHub PR", () =>
+  Effect.gen(function* () {
+    let createInput: Parameters<GitHubCli.GitHubCliShape["createPullRequest"]>[0] | null = null;
+    const provider = yield* makeProvider({
+      createPullRequest: (input) => {
+        createInput = input;
+        return Effect.void;
+      },
+    });
+
+    yield* provider.createChangeRequest({
+      cwd: "/repo",
+      baseRefName: "main",
+      headSelector: "feature/labeled",
+      title: "Labeled PR",
+      bodyFile: "/tmp/body.md",
+      labels: ["ai-generated", "needs-review"],
+    });
+
+    assert.deepStrictEqual(createInput, {
+      cwd: "/repo",
+      baseBranch: "main",
+      headSelector: "feature/labeled",
+      title: "Labeled PR",
+      bodyFile: "/tmp/body.md",
+      labels: ["ai-generated", "needs-review"],
+    });
+  }),
+);
+
 it("accepts active authenticated GitHub accounts when another account fails", () => {
   const auth = GitHubSourceControlProvider.discovery.parseAuth(
     processResult(

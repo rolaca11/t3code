@@ -106,10 +106,18 @@ describe("ServerSettingsPatch.providerInstances", () => {
   });
 });
 
+describe("ServerSettings.githubPullRequestLabels", () => {
+  it("defaults to an empty string for legacy configs", () => {
+    expect(decodeServerSettings({}).githubPullRequestLabels).toBe("");
+    expect(DEFAULT_SERVER_SETTINGS.githubPullRequestLabels).toBe("");
+  });
+});
+
 describe("ServerSettingsPatch string normalization", () => {
   it("trims string settings while decoding patches", () => {
     const patch = decodeServerSettingsPatch({
       addProjectBaseDirectory: "  ~/Development  ",
+      githubPullRequestLabels: "  ai-generated, needs-review  ",
       textGenerationModelSelection: { model: "  gpt-5.4-mini  " },
       observability: {
         otlpTracesUrl: "  http://localhost:4318/v1/traces  ",
@@ -130,6 +138,7 @@ describe("ServerSettingsPatch string normalization", () => {
     });
 
     expect(patch.addProjectBaseDirectory).toBe("~/Development");
+    expect(patch.githubPullRequestLabels).toBe("ai-generated, needs-review");
     expect(patch.textGenerationModelSelection?.model).toBe("gpt-5.4-mini");
     expect(patch.observability?.otlpTracesUrl).toBe("http://localhost:4318/v1/traces");
     expect(patch.providers?.codex?.binaryPath).toBe("/opt/homebrew/bin/codex");
