@@ -538,9 +538,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
       linear-gradient(black, black), linear-gradient(black, black);
     -webkit-mask-position: top, bottom, right;
     -webkit-mask-repeat: no-repeat;
+    /* Overlap the body layer 1px into the fade layer: butting them edge-to-edge
+       leaves a sub-pixel transparent seam at fractional zoom/DPR that reads as a
+       fixed hairline across the content. */
     -webkit-mask-size:
       100% var(--topbar-scroll-fade-height),
-      100% calc(100% - var(--topbar-scroll-fade-height)),
+      100% calc(100% - var(--topbar-scroll-fade-height) + 1px),
       var(--app-scrollbar-width) 100%;
     mask-image:
       linear-gradient(
@@ -558,7 +561,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     mask-repeat: no-repeat;
     mask-size:
       100% var(--topbar-scroll-fade-height),
-      100% calc(100% - var(--topbar-scroll-fade-height)),
+      100% calc(100% - var(--topbar-scroll-fade-height) + 1px),
       var(--app-scrollbar-width) 100%;
   }
 
